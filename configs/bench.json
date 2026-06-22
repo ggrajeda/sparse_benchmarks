@@ -1,0 +1,49 @@
+{
+  "description": "Shared benchmark configuration. Read by every language harness so each one builds the byte-identical matrix and runs the same operations. See README for the generation scheme.",
+
+  "generation": {
+    "comment": "Deterministic COO via the incremental modular map k_0=0, k_i=(k_{i-1}+stride)%(rows*cols), with row_i=k_i//cols, col_i=k_i%cols. 'stride' must be coprime to rows*cols (assert gcd==1 at startup) so the k_i are distinct -> no duplicate coordinates. Deterministic nonzero values: v_i = 1 + (k_i % value_mod). IMPORTANT: rows*cols, nnz, and all of k can exceed 2^31 (and may approach 2^53), so every harness MUST do this arithmetic in exact 64-bit integers -- Python ints are fine; R must use bit64::integer64 (NOT double, which silently loses precision past 2^53). rows*cols must stay below 2^63.",
+    "stride": 2147483647,
+    "value_mod": 97
+  },
+
+  "matrices": [
+    { "name": "small",  "rows": 10000,    "cols": 10000,    "nnz": 1000000 },
+    { "name": "medium", "rows": 100000,   "cols": 100000,   "nnz": 100000000 },
+    { "name": "large",  "rows": 1000000,  "cols": 1000000,  "nnz": 2200000000 }
+  ],
+
+  "operations": [
+    "spmv",
+    "spmm",
+    "row_sums",
+    "col_sums",
+    "sum"
+  ],
+
+  "run": {
+    "comment": "Each operation is timed 'repetitions' times after 'warmup' untimed runs; report median + IQR downstream. CSR conversion is done once up front and is NOT timed. 'threads' is applied to BLAS/OMP env vars by the runner so we measure sparse kernels, not the BLAS.",
+    "warmup": 2,
+    "repetitions": 7,
+    "threads": 1,
+    "storage": "csr"
+  },
+
+  "output": {
+    "comment": "Tidy long-format CSV. Each script appends rows with these columns; merging is just concatenation. 'nnz' is written as an integer string to survive >2^31 values.",
+    "dir": "results",
+    "columns": [
+      "language",
+      "library",
+      "library_version",
+      "matrix_name",
+      "operation",
+      "rows",
+      "cols",
+      "nnz",
+      "threads",
+      "rep",
+      "time_sec"
+    ]
+  }
+}
