@@ -1,32 +1,32 @@
 {
-  "description": "Shared benchmark configuration. Read by every language harness so each one builds the byte-identical matrix and runs the same operations. See README for the generation scheme.",
+  "description": "Shared benchmark configuration. Read by every language harness so each one builds the byte-identical matrix and runs the same operations. See README for the generation scheme. Orientation is genes x cells (rows = genes, cols = cells): the huge dimension is cells (columns), which is the compressed axis for both scipy CSC and R SVT, so the left-multiply (vecmat) is each library's fast path and maps to a per-cell weighted sum of genes.",
 
   "generation": {
-    "comment": "Deterministic COO via the incremental modular map k_0=0, k_i=(k_{i-1}+stride)%(rows*cols), with row_i=k_i//cols, col_i=k_i%cols. 'stride' must be coprime to rows*cols (assert gcd==1 at startup) so the k_i are distinct -> no duplicate coordinates. Deterministic nonzero values: v_i = 1 + (k_i % value_mod). IMPORTANT: rows*cols, nnz, and all of k can exceed 2^31 (and may approach 2^53), so every harness MUST do this arithmetic in exact 64-bit integers -- Python ints are fine; R must use bit64::integer64 (NOT double, which silently loses precision past 2^53). rows*cols must stay below 2^63.",
+    "comment": "Deterministic modular map k_i = (i*stride) % (rows*cols), with row_i = k_i // cols, col_i = k_i % cols. 'stride' must be coprime to rows*cols (assert gcd==1 at startup) so the k_i are distinct -> no duplicate coordinates. Deterministic nonzero values: v_i = 1 + (k_i % value_mod). IMPORTANT: rows*cols, nnz, and all of k can exceed 2^31 (and may approach 2^53), so every harness MUST do this arithmetic in exact 64-bit integers -- Python ints are fine; R must use bit64::integer64 (NOT double, which silently loses precision past 2^53). rows*cols must stay below 2^63.",
     "stride": 2147483647,
     "value_mod": 97
   },
 
   "matrices": [
-    { "name": "small",  "rows": 10000,    "cols": 10000,    "nnz": 1000000 },
-    { "name": "medium", "rows": 100000,   "cols": 100000,   "nnz": 100000000 },
-    { "name": "large",  "rows": 1000000,  "cols": 1000000,  "nnz": 2200000000 }
+    { "name": "small",  "rows": 10000, "cols": 10000,     "nnz": 1000000 },
+    { "name": "medium", "rows": 10000, "cols": 1000000,   "nnz": 100000000 },
+    { "name": "large",  "rows": 10000, "cols": 100000000, "nnz": 2200000000 }
   ],
 
   "operations": [
-    "spmv",
-    "spmm",
+    "vecmat",
+    "vecmat_multi",
     "row_sums",
     "col_sums",
     "sum"
   ],
 
   "run": {
-    "comment": "Each operation is timed 'repetitions' times after 'warmup' untimed runs; report median + IQR downstream. CSR conversion is done once up front and is NOT timed. 'threads' is applied to BLAS/OMP env vars by the runner so we measure sparse kernels, not the BLAS.",
+    "comment": "Each operation is timed 'repetitions' times after 'warmup' untimed runs; report median + IQR downstream. CSC conversion (scipy) / SVT construction (R) is done once up front and is NOT timed. 'threads' is set to 1: the runner pins OMP/OPENBLAS/MKL threads for reproducibility and to make sure CPU time measures the true compute time. Both harnesses measure CPU time (user+system), which sums across threads, so it only equals true compute time when single-threaded.",
     "warmup": 2,
-    "repetitions": 7,
+    "repetitions": 5,
     "threads": 1,
-    "storage": "csr"
+    "storage": "csc"
   },
 
   "output": {

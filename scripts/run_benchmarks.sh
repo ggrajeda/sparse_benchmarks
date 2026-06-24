@@ -3,9 +3,9 @@
 # Run the Python and R sparse-matrix benchmarks and merge their outputs.
 #
 # Reads the shared config (configs/bench.json), pins thread counts in the
-# environment BEFORE launching either interpreter (so we measure sparse kernels,
-# not multithreaded BLAS), runs both harnesses, then concatenates their tidy CSVs
-# into results/all_results.csv for comparison.
+# environment BEFORE launching either interpreter -- for reproducibility and to
+# make sure CPU time measures the true compute time. Runs both harnesses, then
+# concatenates their tidy CSVs into results/all_results.csv.
 #
 # Any extra arguments are forwarded verbatim to both harnesses, e.g.:
 #   scripts/run_benchmarks.sh --matrices small,medium
@@ -94,4 +94,27 @@ if [[ "${header_written}" -eq 0 ]]; then
 else
   rows="$(($(wc -l < "${ALL_CSV}") - 1))"
   echo "[run] done: ${rows} data rows in ${ALL_CSV}"
+fi
+
+# Cross-check that R and Python computed the same results. Only meaningful when
+# both harnesses ran in this invocation and produced digests for the same matrices.
+# A mismatch is recorded but does not abort the run, so the summary still prints;
+# the script exits non-zero at the end.
+PY_DIGESTS="${OUT_DIR}/python_digests.csv"
+R_DIGESTS="${OUT_DIR}/r_digests.csv"
+CROSSCHECK_FAILED=0
+if [[ "${RUN_PYTHON}" -eq 1 && "${RUN_R}" -eq 1 \
+      && -f "${PY_DIGESTS}" && -f "${R_DIGESTS}" ]]; then
+  echo "[run] === Cross-check ==="
+  python3 "${REPO_ROOT}/scripts/crosscheck.py" "${OUT_DIR}" || CROSSCHECK_FAILED=1
+else
+  echo "[run] skipping cross-check (needs both harnesses + digest files)"
+fi
+
+echo "[run] === Summary ==="
+python3 "${REPO_ROOT}/scripts/summarize.py" "${ALL_CSV}"
+
+if [[ "${CROSSCHECK_FAILED}" -eq 1 ]]; then
+  echo "[run] cross-check FAILED: R and Python results disagree (see above)" >&2
+  exit 1
 fi
